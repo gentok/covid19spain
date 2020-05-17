@@ -39,6 +39,6 @@ out/*.rds
 *.gddraw
 
 # Ignore madrid related Files
-*._madrid.rds
-*._madrid.R
-*._madrid_rev.rds
+*_madrid.rds
+*_madrid.R
+*_madrid_rev.rds
