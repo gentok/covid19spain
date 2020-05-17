@@ -4,6 +4,7 @@
 data/covid_euskadi/
 data/covid_madrid/
 data/covid_murcia/
+data/covid_cataluna/
 data/demo_cataluna/
 data/demo_madrid/
 data/shapefile/bm5mv21sh0tc1_20200101_0/
@@ -35,6 +36,9 @@ out/*.rds
 # Ignore Google Doc Related Files
 *.gdlink
 *.gddoc
+*.gddraw
 
 # Ignore madrid related Files
-*_madrid*
+*._madrid.rds
+*._madrid.R
+*._madrid_rev.rds
