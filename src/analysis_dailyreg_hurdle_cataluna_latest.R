@@ -1,11 +1,11 @@
 #' ---
-#' title: "Analysis of COVID-19 PCR Test Data"
-#' author: "Gento Kato"
-#' date: "April 15, 2020"
+#' title: "Analysis of COVID-19 PCR Test Data (Latest)"
+#' author: "Gento Kato and Ryohei Mogi"
+#' date: "First Created in April 15, 2020"
 #' ---
 #' 
-#' upd: 2020/05/08 by Ryohei Mogi <br>
-#' upd: 2020/05/08 by Gento Kato
+#' upd: 2020/05/16 by Gento Kato <br>
+#' upd: 2020/05/08 by Ryohei Mogi 
 #' 
 #' # Preparation
 #' 
@@ -29,6 +29,7 @@ library(sf)
 library(fts)
 library(dotwhisker)
 library(cowplot)
+library(GGally)
 
 ## Import Relevant Data
 coviddt <- readRDS(paste0(projdir,"/","data/covid_cataluna_wide.rds")) %>% 
@@ -40,6 +41,26 @@ demodt <- readRDS(paste0(projdir,"/","data/demo_cataluna_wide_rev.rds")) %>%
 censusdt <- readRDS(paste0(projdir,"/","data/census2011_cataluna.rds")) %>% 
   filter(mundesc != "(altres municipis)")
 
+# For Mogi
+#coviddt <- readRDS("Data/covid_cataluna_wide.rds") %>% 
+#  filter(mundesc != "(altres municipis)")
+## shapedt <- readRDS(paste0(projdir,"/","data/shapefile/shape_cataluna_rev.rds")) %>% 
+##   filter(mundesc != "(altres municipis)")
+#demodt <- readRDS("Data/demo_cataluna_wide_rev.rds") %>% 
+#  filter(mundesc != "(altres municipis)")
+#censusdt <- readRDS("Data/census2011_cataluna.rds") %>% 
+#  filter(mundesc != "(altres municipis)")
+
+#'
+#' # Date of Analysis
+#'
+
+Date_analy <- max(coviddt$Data)
+Date_analy_simple <- "latest"
+# Date_analy <- "2020-05-14"
+# Date_analy_simple <- gsub("-","", Date_analy)
+Date_analy
+
 #'
 #' # Data Cleaning/Manipulation
 #'
@@ -48,7 +69,8 @@ censusdt <- readRDS(paste0(projdir,"/","data/census2011_cataluna.rds")) %>%
 granddt <- coviddt %>% 
   inner_join(demodt, by = c("mundesc"="mundesc")) %>% 
   #inner_join(shapedt, by = c("mundesc"="mundesc")) %>% 
-  inner_join(censusdt, by = c("mundesc"="mundesc"))
+  inner_join(censusdt, by = c("mundesc"="mundesc")) %>%
+  filter(Data<=Date_analy)
 
 # Recode Data
 granddt <- granddt %>% 
@@ -72,8 +94,8 @@ granddt <- granddt %>%
          pop_regunemp = as.numeric(as.character(f242)), # Annual Average N of Registered Unemployment
          regunemprate = (pop_regunemp / pop_15to64) * 100,
          avincome = as.numeric(as.character(f7)),
-         taxbaseincome = as.numeric(as.character(f10))/10000,
-         totalwealth = as.numeric(as.character(f180))/10000,
+         taxbaseincome = as.numeric(as.character(f10))/ 10000,
+         totalwealth = as.numeric(as.character(f180))/ 10000,
          posrate = (pos / test) * 100,
          pos_100k = pos / (pop / 100000),
          test_100k = test / (pop / 100000),
@@ -92,7 +114,7 @@ granddt <- granddt %>%
          death2018 = as.numeric(as.character(f188)),
          immig_noEU = as.numeric(as.character(f316)),
          pop_noESP = as.numeric(as.character(f73)),
-         deathrate = (death2018 / pop18) * 100, 
+         deathrate = death2018 / (pop18/1000), 
          prop_immig_noEU = (immig_noEU / pop18) * 100, 
          prop_pop_noESP = (pop_noESP / pop18) * 100, 
          mainhh = as.numeric(as.character(f250)), # Number of main households in 2011
@@ -105,7 +127,14 @@ granddt <- granddt %>%
          prop_lowpricerent = (pop_lowpricerent / pop_housingall) * 100,
          pop_univ = t12_5,
          pop_eduall = t12_1 + t12_2 + t12_3 + t12_4 + t12_5,
-         prop_univ = (pop_univ/pop_eduall) * 100)
+         prop_univ = (pop_univ / pop_eduall) * 100,
+         mean_numhh_census = ((1 * t22_1) + (2 * t22_2) + (3 * t22_3) + (4 * t22_4) + 
+                                (5 * t22_5) + (7 * t22_6)) / 
+           ((1 * t22_1) + (1 * t22_2) + (1 * t22_3) + (1 * t22_4) + 
+              (1 * t22_5) + (1 * t22_6)), # how to define the last category (6+)
+         log_pop = log(pop),
+         log_popdens = log(popdens))
+
 
 ## Moving Sum by 7 days
 granddt$pos_wk <- NA
@@ -117,17 +146,21 @@ for (i in unique(granddt$mundesc)) {
 }
 tail(granddt$pos_wk, 30)
 
+# Check mean number of household members
+#plot(granddt[granddt$Data == "2020-05-09", ]$numhh, 
+#granddt[granddt$Data == "2020-05-09", ]$mean_numhh_census, xlim = c(0, 7))
+
 #+ eval = FALSE
 ## Save Grand Dataset
-saveRDS(granddt, paste0(projdir,"/data/granddt_latest.rds"))
+saveRDS(granddt, paste0(projdir,"/data/granddt_", Date_analy_simple, ".rds"))
 
 #'
-#' # Plot: Daily trend of cummulative confirmed cases
+#' # Plot: Daily trend of cumulative confirmed cases
 #' 
 
 sel <- granddt %>% 
   dplyr::select(munname, Data, pos, pos_day, pos_100k, pos_day100k, pos_wk) %>% 
-  filter(Data == max(Data)) %>% 
+  filter(Data == Date_analy) %>% 
   arrange(desc(pos)) %>% 
   top_n(n = 50, wt = pos) %>% 
   dplyr::select(munname) %>% 
@@ -138,7 +171,11 @@ D_Fig <- granddt %>%
   filter(munname %in% sel)
 
 casetiles <- D_Fig %>% 
-  filter(munname != "Barcelona") %>% 
+  filter(munname != "Barcelona",
+         Data <= Date_analy) %>% 
+  mutate(munname = case_when(munname == "Hospitalet de Llobregat, l'" ~ "L'Hospitalet de Llobregat", 
+                             munname == "Prat de Llobregat, el" ~ "El Prat de Llobregat",
+                             T ~ munname)) %>% 
   ggplot(aes(x = Data, y = fct_reorder(munname, pos), fill = pos)) +
   geom_tile(colour = "White", show.legend = F) +
   theme_classic() +
@@ -149,7 +186,7 @@ casetiles <- D_Fig %>%
 
 casebars <- D_Fig %>% 
   filter(munname != "Barcelona") %>% 
-  filter(Data == max(Data)) %>% 
+  filter(Data == Date_analy) %>% 
   ggplot(aes(x = pos, y = fct_reorder(munname, pos), fill = pos)) +
   geom_col(show.legend = F) +
   theme_classic() +
@@ -160,8 +197,10 @@ casebars <- D_Fig %>%
 
 p <- plot_grid(casetiles, casebars, align = "h", rel_widths = c(1, 0.2))
 p
-ggsave(paste0(projdir,"/","out/ForArticle/Timetrend_cumcases.png"), p, width = 10, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/Timetrend_cumcases.pdf"), p, width = 10, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/timetrend_cumcases_", Date_analy_simple, ".png"), p, width = 10, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/timetrend_cumcases_", Date_analy_simple, ".pdf"), p, width = 10, height = 6)
+#ggsave("Graph/Timetrend_cumcases_", Date_analy_simple, ".png", p, width = 10, height = 6)
+#ggsave("Graph/Timetrend_cumcases_", Date_analy_simple, ".pdf", p, width = 10, height = 6)
 
 #'
 #' # Analysis
@@ -170,13 +209,13 @@ ggsave(paste0(projdir,"/","out/ForArticle/Timetrend_cumcases.pdf"), p, width = 1
 #'
 
 ## Function to Standardize Predictors
-stdv <- function(var) (var - mean(var, na.rm=TRUE))/sd(var, na.rm=TRUE)
+stdv <- function(var) (var - mean(var, na.rm = TRUE)) / sd(var, na.rm = TRUE)
 
-# Estimate Models with Cummulative Positive Cases
+# Estimate Models with Cumulative Positive Cases
 require(pscl)
 doEstMod_hurdle <- function(threshold_Data) {
   granddt %>%
-    filter(Data >= threshold_Data) %>%  
+    filter(Data >= threshold_Data & Data <= Date_analy) %>%  
     group_by(Data) %>% 
     do(m1 = hurdle(pos ~ stdv(regunemprate) + stdv(taxbaseincome) + 
                      stdv(prop_smallhouse) + 
@@ -184,7 +223,7 @@ doEstMod_hurdle <- function(threshold_Data) {
                      stdv(deathrate) + stdv(poppr_65plus) + 
                      stdv(prop_univ) + 
                      stdv(log(pop)) + stdv(log(popdens)) + 
-                     stdv(numhh), 
+                     stdv(mean_numhh_census), 
                    dist = "negbin", data = .),
        m2 = hurdle(pos ~ stdv(regunemprate) + stdv(taxbaseincome) + 
                      stdv(prop_smallhouse) + 
@@ -192,7 +231,7 @@ doEstMod_hurdle <- function(threshold_Data) {
                      stdv(deathrate) + stdv(poppr_65plus) + 
                      stdv(prop_univ) + 
                      stdv(log(pop)) + stdv(log(popdens)) + 
-                     stdv(numhh), 
+                     stdv(mean_numhh_census), 
                    dist = "negbin", data = .),
        m3 = hurdle(pos ~ stdv(unemprate) + stdv(taxbaseincome) + 
                      stdv(prop_smallhouse) + 
@@ -200,15 +239,25 @@ doEstMod_hurdle <- function(threshold_Data) {
                      stdv(deathrate) + stdv(poppr_65plus) + 
                      stdv(prop_univ) + 
                      stdv(log(pop)) + stdv(log(popdens)) + 
-                     stdv(numhh), 
+                     stdv(mean_numhh_census), 
+                   dist = "negbin", data = .),
+       # m4: not divided by population
+       m4 = hurdle(pos ~ stdv(pop_regunemp) + stdv(taxbaseincome) +
+                     stdv(prop_smallhouse) + 
+                     stdv(immig_noEU) + 
+                     stdv(death2018) + stdv(pop_65plus) + 
+                     stdv(pop_univ) + 
+                     stdv(log(pop)) + stdv(log(popdens)) + 
+                     stdv(mean_numhh_census), 
                    dist = "negbin", data = .)
     )
 }
 
-## By Weekly Moving Sum of Positive Cases
+## By Moving Weekly Sum of Positive Cases
 doEstMod_hurdle_wk <- function(threshold_Data) {
   granddt %>%
-    filter(Data >= threshold_Data & !is.na(pos_wk)) %>%  
+    filter(Data >= threshold_Data & Data <= Date_analy,
+           !is.na(pos_wk)) %>%  
     group_by(Data) %>% 
     do(m1 = hurdle(pos_wk ~ stdv(regunemprate) + stdv(taxbaseincome) + 
                      stdv(prop_smallhouse) + 
@@ -216,7 +265,7 @@ doEstMod_hurdle_wk <- function(threshold_Data) {
                      stdv(deathrate) + stdv(poppr_65plus) + 
                      stdv(prop_univ) + 
                      stdv(log(pop)) + stdv(log(popdens)) + 
-                     stdv(numhh), 
+                     stdv(mean_numhh_census), 
                    dist = "negbin", data = .),
        m2 = hurdle(pos_wk ~ stdv(regunemprate) + stdv(taxbaseincome) + 
                      stdv(prop_smallhouse) + 
@@ -224,7 +273,7 @@ doEstMod_hurdle_wk <- function(threshold_Data) {
                      stdv(deathrate) + stdv(poppr_65plus) + 
                      stdv(prop_univ) + 
                      stdv(log(pop)) + stdv(log(popdens)) + 
-                     stdv(numhh), 
+                     stdv(mean_numhh_census), 
                    dist = "negbin", data = .),
        m3 = hurdle(pos_wk ~ stdv(unemprate) + stdv(taxbaseincome) + 
                      stdv(prop_smallhouse) + 
@@ -232,7 +281,15 @@ doEstMod_hurdle_wk <- function(threshold_Data) {
                      stdv(deathrate) + stdv(poppr_65plus) + 
                      stdv(prop_univ) + 
                      stdv(log(pop)) + stdv(log(popdens)) + 
-                     stdv(numhh), 
+                     stdv(mean_numhh_census), 
+                   dist = "negbin", data = .),
+       m4 = hurdle(pos_wk ~ stdv(pop_regunemp) + stdv(taxbaseincome) +
+                     stdv(prop_smallhouse) + 
+                     stdv(immig_noEU) + 
+                     stdv(death2018) + stdv(pop_65plus) + 
+                     stdv(pop_univ) + 
+                     stdv(log(pop)) + stdv(log(popdens)) + 
+                     stdv(mean_numhh_census), 
                    dist = "negbin", data = .)
     )
 }
@@ -242,16 +299,24 @@ doEstMod_hurdle_wk <- function(threshold_Data) {
 
 ## Variable Labels for each model
 varlab_1 <- c("(Intercept)", "% Unemployment \n(Registered)", 
-            "Av. Taxable Base Income \n(100k Euro)", #"% Low-Cost Rent",
+            "Av. Taxable Base Income \n(10k euro)", #"% Low-Cost Rent",
             "% Small House \n(<=90sq.m)",
             "% Immigrants out of EU", #"% Service Industry",
-            "Death rate", "% Age 65+", 
-            "% University",
+            "Death rate in 2018", "% Age 65+", 
+            "% University degree",
             "Population (Log)","Pop. Density (Log)",
             "Av. N in Household")
 varlab_2 <- c(varlab_1[1:5],"% Service Industry", varlab_1[6:length(varlab_1)])
 varlab_3 <- ifelse(varlab_1=="% Unemployment \n(Registered)",
-                   "% Unemployment (Alternative)", varlab_1)
+                   "% Unemployment \n(Alternative)", varlab_1)
+varlab_4 <- c("(Intercept)", "N. Unemployed pop\n(Registered)", 
+              "Av. Taxable Base Income \n(10k euro)", #"% Low-Cost Rent",
+              "% Small House \n(<=90sq.m)",
+              "Immigrants out of EU", #"% Service Industry",
+              "N. Death in 2018", "N. Age 65+", 
+              "N. University degree",
+              "Population (Log)","Pop. Density (Log)",
+              "Av. N in Household")
 
 # Plotting Only One Day
 plotEstMod_oneshot <- function(EstMod, date, modname, dvtxt1, dvtxt2, varlab){
@@ -284,15 +349,15 @@ plotEstMod_oneshot <- function(EstMod, date, modname, dvtxt1, dvtxt2, varlab){
            sig = factor(sig, levels=c("p<.05","p<.10","n.s."))) %>% 
     filter(term != "(Intercept)")
   
-  captiontxt = paste0("Predictors' scales are standardized: incidence rate/odds ratios correspond with 1 SD increase in each predictor.",
+  captiontxt = paste0("Predictors' scales are standardized: odds/incidence-rate ratios correspond to 1 SD increase in each predictor.",
                       "\nDependent variable is all confirmed cases as of ",date,". Municipality N = ", mod$n,".")
   
   Fig <- D_Fig %>% 
     ggplot() +
     # geom_segment(aes(x = exp(lo90), xend = exp(up90), y = term, yend = term), col = "#FD8D3C", alpha = 0.8, size = 2) +
     # geom_segment(aes(x = exp(lo95), xend = exp(up95), y = term, yend = term), col = "#ffa869", alpha = 0.8, size = 1.4) +
-    geom_segment(aes(x = exp(lo90), xend = exp(up90), y = term, yend = term, col=sig), alpha = 0.8, size = 2) +
-    geom_segment(aes(x = exp(lo95), xend = exp(up95), y = term, yend = term, col=sig), alpha = 0.8, size = 1.4) +
+    geom_segment(aes(x = exp(lo90), xend = exp(up90), y = term, yend = term, col = sig), alpha = 0.8, size = 2.2) +
+    geom_segment(aes(x = exp(lo95), xend = exp(up95), y = term, yend = term, col = sig), alpha = 0.8, size = 1.4) +
     geom_point(aes(x = exp(estimate), y = term, shape = sig), size=2) +
     geom_vline(xintercept = 1, linetype = "dotted") +
     facet_grid(~ type, scales = "free_x") + 
@@ -314,8 +379,8 @@ plotEstMod_oneshot <- function(EstMod, date, modname, dvtxt1, dvtxt2, varlab){
 plotEstMod <- function(EstMod,startdate,type,modname,dvtxt1,dvtxt2,varlab) {
   
   names(EstMod)[names(EstMod)==modname] <- "targetmod"
-  if (type=="count") TYPE="Positive count model incident rate " 
-  if (type=="zero") TYPE="Hurdle component model odds"
+  if (type=="count") TYPE="Positive count model incidence rate " 
+  if (type=="zero") TYPE="Hurdle component model odds "
   
   EstOut <- data.frame(estimate=numeric(), term=character(),
                        std.error=numeric(), type=character())
@@ -345,14 +410,63 @@ plotEstMod <- function(EstMod,startdate,type,modname,dvtxt1,dvtxt2,varlab) {
     labs(title = paste0("Association between municipality characteristics and \n", dvtxt1, " COVID-19 ", dvtxt2, " cases"),
          x = "Date", y = paste0(TYPE, "ratio \nwith 90% and 95% CI (logged scale)"),
          caption = paste0("Models estimated daily by hurdle model with logit for hurdle component and negative binomial regression for positive count.\n",
-                          "Predictors' scales are standardized: incidence rate/odds ratios correspond with 1 SD increase in each predictor.\n",
+                          "Predictors' scales are standardized: odds/incidence-rate ratios correspond to 1 SD increase in each predictor.\n",
                           "Includes cases recored by ", 
                           gsub("-","/",as.character(max(EstMod$Data))),
                           " (N=", EstMod$targetmod[[1]]$n," in each model).")) + 
     theme_classic() + theme(legend.position = "none",
                             plot.title = element_text(hjust=0.5),
-                            axis.text.x = element_text(angle=30,vjust=0.5)) 
+                            axis.text.x = element_text(angle=30, vjust=0.8, hjust=0.9)) 
 }
+
+#'
+#' # Plot: Correlation matrix
+#' 
+
+corrdt <- granddt %>% 
+  select(regunemprate, taxbaseincome, 
+         prop_smallhouse, prop_immig_noEU, 
+         deathrate, poppr_65plus, 
+         prop_univ,
+         log_pop, log_popdens, 
+         mean_numhh_census)
+colnames(corrdt) <- c("A. Unemployment (%)",
+                    "B. Av. taxable income (10k euro)",
+                    "C. House <= 90sq.m (%)",           
+                    "D.Immigrants out of EU (%)",
+                    "E. Crude death rate (2018)",                   
+                    "F. Age 65+ (%)",
+                    "G. University degree (%)",
+                    "H. Population (Log)",
+                    "I. Pop. Density (Log)",                   
+                    "J. Av. N in Household")
+corrmat <- cor(corrdt[,rev(colnames(corrdt))], use="pairwise")
+rownames(corrmat) <- sub("\\..*$","", rev(colnames(corrdt)))
+
+## Correlation matrix
+# p <- ggcorr(corrmat, palette = "RdBu", label = T, hjust=1)
+require(ggcorrplot)
+p <- ggcorrplot(corrmat, type = "full", show.diag=TRUE, lab = TRUE, tl.srt=0) + 
+  theme_classic() + labs(x=NULL,y=NULL) + 
+  scale_x_discrete(expand=c(0,0)) + 
+  scale_y_discrete(expand=c(0,0)) + 
+  geom_hline(aes(yintercept=6.5), linetype=1) + 
+  geom_vline(aes(xintercept=6.5), linetype=1) + 
+  geom_hline(aes(yintercept=4.5), linetype=1) + 
+  geom_vline(aes(xintercept=4.5), linetype=1) + 
+  geom_hline(aes(yintercept=3.5), linetype=1) + 
+  geom_vline(aes(xintercept=3.5), linetype=1) 
+
+#+ fig.width=7, fig.height=7
+p
+
+#+ eval=FALSE
+ggsave(paste0(projdir,"/","out/ForArticle/corrmat_", Date_analy_simple, ".png"), p, width = 8, height = 5)
+ggsave(paste0(projdir,"/","out/ForArticle/corrmat_", Date_analy_simple, ".pdf"), p, width = 8, height = 5)
+# ggsave("Graph/Correlation_Matrix.png", p, width = 7, height = 7)
+
+## scatter plot of tax base income and % of small house
+# p <- plot(corrmat$taxbaseincome, corrmat$prop_smallhouse)
 
 #'
 #' ## Run Estimation
@@ -360,67 +474,87 @@ plotEstMod <- function(EstMod,startdate,type,modname,dvtxt1,dvtxt2,varlab) {
 
 #+ eval = FALSE
 
-## By Cummulative 
+## By Cumulative 
 EstMod_hurdle <- doEstMod_hurdle("2020-03-09") # One week before the lockdown
 
-## By Weekly Moving Sum 
+## By Moving Weekly Sum 
 EstMod_hurdle_wk <- doEstMod_hurdle_wk("2020-03-09")
 
 #+ echo = FALSE, eval = FALSE
 ## Save Models
-saveRDS(EstMod_hurdle, paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_mods.rds"))
-saveRDS(EstMod_hurdle_wk, paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_mods.rds"))
+saveRDS(EstMod_hurdle, paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_mods_", Date_analy_simple, ".rds"))
+saveRDS(EstMod_hurdle_wk, paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_mods_", Date_analy_simple, ".rds"))
 
 #+ echo = FALSE
 ## Read Models
-EstMod_hurdle <- readRDS(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_mods.rds"))
-EstMod_hurdle_wk <- readRDS(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_mods.rds"))
+EstMod_hurdle <- readRDS(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_mods_", Date_analy_simple, ".rds"))
+EstMod_hurdle_wk <- readRDS(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_mods_", Date_analy_simple, ".rds"))
 
 #'
 #' ## Coefficient Plot at the current (latest) date
 #'
 
 ## The Current Date
-max(EstMod_hurdle$Data)
+#max(EstMod_hurdle$Data)
+
+## The Date for the analysis
+Date_analy
 
 #+ Model 1
-p <- plotEstMod_oneshot(EstMod_hurdle, max(EstMod_hurdle$Data), "m1", 
-                   "cummulative", "positive", varlab_1)
+p <- plotEstMod_oneshot(EstMod_hurdle, Date_analy, "m1", 
+                   "cumulative", "positive", varlab_1)
 #+ fig.width = 8, fig.height = 5
 p
 #+ eval = FALSE
-ggsave(paste0(projdir,"/","out/currentreg_hurdle_wk_pos_m1.png"), p, width = 8, height = 5)
-ggsave(paste0(projdir,"/","out/currentreg_hurdle_wk_pos_m1.pdf"), p, width = 8, height = 5)
-ggsave(paste0(projdir,"/","out/ForArticle/currentreg_hurdle_wk_pos_m1_wotitle.png"), 
+ggsave(paste0(projdir,"/","out/currentreg_hurdle_cum_pos_m1_", Date_analy_simple, ".png"), p, width = 8, height = 5)
+ggsave(paste0(projdir,"/","out/currentreg_hurdle_cum_pos_m1_", Date_analy_simple, ".pdf"), p, width = 8, height = 5)
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_hurdle_cum_pos_m1_wotitle_", Date_analy_simple, ".png"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 5)
-ggsave(paste0(projdir,"/","out/ForArticle/currentreg_hurdle_wk_pos_m1_wotitle.pdf"), 
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_hurdle_cum_pos_m1_wotitle_", Date_analy_simple, ".pdf"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 5)
+#ggsave(paste0("Graph/currentreg_hurdle_cum_pos_m1_wotitle_", Date_analy_simple, ".png"), 
+#       p + labs(title=NULL, caption=NULL), width = 8, height = 5)
 
 #+ Model 2
 p <- plotEstMod_oneshot(EstMod_hurdle, max(EstMod_hurdle$Data), "m2", 
-                        "cummulative", "positive", varlab_2)
+                        "cumulative", "positive", varlab_2)
 #+ fig.width = 8, fig.height = 5
 p
 #+ eval = FALSE
-ggsave(paste0(projdir,"/","out/currentreg_hurdle_wk_pos_m2.png"), p, width = 8, height = 5)
-ggsave(paste0(projdir,"/","out/currentreg_hurdle_wk_pos_m2.pdf"), p, width = 8, height = 5)
-ggsave(paste0(projdir,"/","out/ForArticle/currentreg_hurdle_wk_pos_m2_wotitle.png"), 
+ggsave(paste0(projdir,"/","out/currentreg_hurdle_cum_pos_m2_", Date_analy_simple, ".png"), p, width = 8, height = 5)
+ggsave(paste0(projdir,"/","out/currentreg_hurdle_cum_pos_m2_", Date_analy_simple, ".pdf"), p, width = 8, height = 5)
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_hurdle_cum_pos_m2_wotitle_", Date_analy_simple, ".png"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 5)
-ggsave(paste0(projdir,"/","out/ForArticle/currentreg_hurdle_wk_pos_m2_wotitle.pdf"), 
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_hurdle_cum_pos_m2_wotitle_", Date_analy_simple, ".pdf"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 5)
 
 #+ Model 3
 p <- plotEstMod_oneshot(EstMod_hurdle, max(EstMod_hurdle$Data), "m3", 
-                        "cummulative", "positive", varlab_3)
+                        "cumulative", "positive", varlab_3)
 #+ fig.width = 8, fig.height = 5
 p
 #+ eval = FALSE
-ggsave(paste0(projdir,"/","out/currentreg_hurdle_wk_pos_m3.png"), p, width = 8, height = 5)
-ggsave(paste0(projdir,"/","out/currentreg_hurdle_wk_pos_m3.pdf"), p, width = 8, height = 5)
-ggsave(paste0(projdir,"/","out/ForArticle/currentreg_hurdle_wk_pos_m3_wotitle.png"), 
+ggsave(paste0(projdir,"/","out/currentreg_hurdle_cum_pos_m3_", Date_analy_simple, ".png"), p, width = 8, height = 5)
+ggsave(paste0(projdir,"/","out/currentreg_hurdle_cum_pos_m3_", Date_analy_simple, ".pdf"), p, width = 8, height = 5)
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_hurdle_cum_pos_m3_wotitle_", Date_analy_simple, ".png"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 5)
-ggsave(paste0(projdir,"/","out/ForArticle/currentreg_hurdle_wk_pos_m3_wotitle.pdf"), 
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_hurdle_cum_pos_m3_wotitle_", Date_analy_simple, ".pdf"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 5)
+
+#+ Model 4
+p <- plotEstMod_oneshot(EstMod_hurdle, Date_analy, "m4", 
+                        "cumulative", "positive", varlab_4)
+#+ fig.width = 8, fig.height = 5
+p
+#+ eval = FALSE
+ggsave(paste0(projdir,"/","out/currentreg_hurdle_cum_pos_m4_", Date_analy_simple, ".png"), p, width = 8, height = 5)
+ggsave(paste0(projdir,"/","out/currentreg_hurdle_cum_pos_m4_", Date_analy_simple, ".pdf"), p, width = 8, height = 5)
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_hurdle_cum_pos_m4_wotitle_", Date_analy_simple, ".png"),
+       p + labs(title=NULL, caption=NULL), width = 8, height = 5)
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_hurdle_cum_pos_m4_wotitle_", Date_analy_simple, ".pdf"),
+       p + labs(title=NULL, caption=NULL), width = 8, height = 5)
+# ggsave("Graph/currentreg_hurdle_cum_pos_m4_wotitle_", Date_analy_simple, ".png", 
+#        p + labs(title=NULL, caption=NULL), width = 8, height = 5)
 
 #'
 #' ## Dynamic Plots
@@ -439,24 +573,31 @@ p <- plotEstMod(EstMod_hurdle_wk, startdate, "count", "m1", "weekly", "positive"
 #+ fig.width = 8, fig.height = 6
 p
 #+ eval = FALSE
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m1_count.png"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m1_count.pdf"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m1_count_wotitle.png"), 
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m1_count_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m1_count_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m1_count_wotitle_", Date_analy_simple, ".png"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m1_count_wotitle.pdf"), 
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m1_count_wotitle_", Date_analy_simple, ".pdf"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+
+#ggsave(paste0("Graph/dailyreg_hurdle_wk_pos_m1_count_wotitle_census_", Date_analy_simple, ".png"), 
+#       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+
 #+ 
 ## Model 1 (Zero)
 p <- plotEstMod(EstMod_hurdle_wk, startdate, "zero", "m1", "weekly", "positive", varlab_1)
 #+ fig.width = 8, fig.height = 6
 p
 #+ eval = FALSE
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m1_zero.png"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m1_zero.pdf"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m1_zero_wotitle.png"), 
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m1_zero_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m1_zero_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m1_zero_wotitle_", Date_analy_simple, ".png"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m1_zero_wotitle.pdf"), 
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m1_zero_wotitle_", Date_analy_simple, ".pdf"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+
+#ggsave(paste0("Graph/dailyreg_hurdle_wk_pos_m1_zero_wotitle_census_", Date_analy_simple, ".png"), 
+#       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
 
 #+ 
 ## Model 2 (Count)
@@ -464,11 +605,11 @@ p <- plotEstMod(EstMod_hurdle_wk, startdate, "count", "m2", "weekly", "positive"
 #+ fig.width = 8, fig.height = 6
 p
 #+ eval = FALSE
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m2_count.png"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m2_count.pdf"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m2_count_wotitle.png"), 
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m2_count_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m2_count_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m2_count_wotitle_", Date_analy_simple, ".png"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m2_count_wotitle.pdf"), 
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m2_count_wotitle_", Date_analy_simple, ".pdf"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
 #+ 
 ## Model 2 (Zero)
@@ -476,11 +617,11 @@ p <- plotEstMod(EstMod_hurdle_wk, startdate, "zero", "m2", "weekly", "positive",
 #+ fig.width = 8, fig.height = 6
 p
 #+ eval = FALSE
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m2_zero.png"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m2_zero.pdf"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m2_zero_wotitle.png"), 
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m2_zero_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m2_zero_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m2_zero_wotitle_", Date_analy_simple, ".png"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m2_zero_wotitle.pdf"), 
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m2_zero_wotitle_", Date_analy_simple, ".pdf"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
 
 #+ 
@@ -489,11 +630,11 @@ p <- plotEstMod(EstMod_hurdle_wk, startdate, "count", "m3", "weekly", "positive"
 #+ fig.width = 8, fig.height = 6
 p
 #+ eval = FALSE
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m3_count.png"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m3_count.pdf"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m3_count_wotitle.png"), 
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m3_count_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m3_count_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m3_count_wotitle_", Date_analy_simple, ".png"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m3_count_wotitle.pdf"), 
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m3_count_wotitle_", Date_analy_simple, ".pdf"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
 #+ 
 ## Model 3 (Zero)
@@ -501,11 +642,38 @@ p <- plotEstMod(EstMod_hurdle_wk, startdate, "zero", "m3", "weekly", "positive",
 #+ fig.width = 8, fig.height = 6
 p
 #+ eval = FALSE
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m3_zero.png"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m3_zero.pdf"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m3_zero_wotitle.png"), 
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m3_zero_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m3_zero_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m3_zero_wotitle_", Date_analy_simple, ".png"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m3_zero_wotitle.pdf"), 
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m3_zero_wotitle_", Date_analy_simple, ".pdf"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+
+#+ 
+## Model 4 (Count)
+p <- plotEstMod(EstMod_hurdle_wk, startdate, "count", "m4", "weekly", "positive", varlab_4)
+#+ fig.width = 8, fig.height = 6
+p
+#+ eval = FALSE
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m4_count_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m4_count_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m4_count_wotitle_", Date_analy_simple, ".png"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m4_count_wotitle_", Date_analy_simple, ".pdf"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+# ggsave("Graph/dailyreg_hurdle_wk_pos_m4_count_wotitle_census.png", 
+#        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+#+ 
+## Model 4 (Zero)
+p <- plotEstMod(EstMod_hurdle_wk, startdate, "zero", "m4", "weekly", "positive", varlab_4)
+#+ fig.width = 8, fig.height = 6
+p
+#+ eval = FALSE
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m4_zero_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m4_zero_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m4_zero_wotitle_", Date_analy_simple, ".png"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m4_zero_wotitle_", Date_analy_simple, ".pdf"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
 
 #'
@@ -514,83 +682,114 @@ ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m3_zero_wotitle
 
 #+ 
 ## Model 1 (Count)
-p <- plotEstMod(EstMod_hurdle_wk, startdate, "count", "m1", "cumulative", "positive", varlab_1)
+p <- plotEstMod(EstMod_hurdle, startdate, "count", "m1", "cumulative", "positive", varlab_1)
 #+ fig.width = 8, fig.height = 6
 p
 #+ eval = FALSE
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m1_count.png"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m1_count.pdf"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m1_count_wotitle.png"), 
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m1_count_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m1_count_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m1_count_wotitle_", Date_analy_simple, ".png"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m1_count_wotitle.pdf"), 
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m1_count_wotitle_", Date_analy_simple, ".pdf"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+
+#ggsave(paste0("Graph/dailyreg_hurdle_cum_pos_m1_count_wotitle_census_", Date_analy_simple, ".png"), 
+#       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+
 #+ 
 ## Model 1 (Zero)
-p <- plotEstMod(EstMod_hurdle_wk, startdate, "zero", "m1", "cumulative", "positive", varlab_1)
+p <- plotEstMod(EstMod_hurdle, startdate, "zero", "m1", "cumulative", "positive", varlab_1)
 #+ fig.width = 8, fig.height = 6
 p
 #+ eval = FALSE
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m1_zero.png"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m1_zero.pdf"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m1_zero_wotitle.png"), 
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m1_zero_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m1_zero_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m1_zero_wotitle_", Date_analy_simple, ".png"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m1_zero_wotitle.pdf"), 
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m1_zero_wotitle_", Date_analy_simple, ".pdf"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+#ggsave(paste0("Graph/dailyreg_hurdle_cum_pos_m1_zero_wotitle_census_", Date_analy_simple, ".png"), 
+#       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
 
 #+ 
 ## Model 2 (Count)
-p <- plotEstMod(EstMod_hurdle_wk, startdate, "count", "m2", "cumulative", "positive", varlab_2)
+p <- plotEstMod(EstMod_hurdle, startdate, "count", "m2", "cumulative", "positive", varlab_2)
 #+ fig.width = 8, fig.height = 6
 p
 #+ eval = FALSE
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m2_count.png"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m2_count.pdf"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m2_count_wotitle.png"), 
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m2_count_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m2_count_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m2_count_wotitle_", Date_analy_simple, ".png"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m2_count_wotitle.pdf"), 
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m2_count_wotitle_", Date_analy_simple, ".pdf"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
 #+ 
 ## Model 2 (Zero)
-p <- plotEstMod(EstMod_hurdle_wk, startdate, "zero", "m2", "cumulative", "positive", varlab_2)
+p <- plotEstMod(EstMod_hurdle, startdate, "zero", "m2", "cumulative", "positive", varlab_2)
 #+ fig.width = 8, fig.height = 6
 p
 #+ eval = FALSE
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m2_zero.png"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m2_zero.pdf"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m2_zero_wotitle.png"), 
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m2_zero_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m2_zero_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m2_zero_wotitle_", Date_analy_simple, ".png"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m2_zero_wotitle.pdf"), 
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m2_zero_wotitle_", Date_analy_simple, ".pdf"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
 
 #+ 
 ## Model 3 (Count)
-p <- plotEstMod(EstMod_hurdle_wk, startdate, "count", "m3", "cumulative", "positive", varlab_3)
+p <- plotEstMod(EstMod_hurdle, startdate, "count", "m3", "cumulative", "positive", varlab_3)
 #+ fig.width = 8, fig.height = 6
 p
 #+ eval = FALSE
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m3_count.png"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m3_count.pdf"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m3_count_wotitle.png"), 
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m3_count_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m3_count_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m3_count_wotitle_", Date_analy_simple, ".png"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m3_count_wotitle.pdf"), 
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m3_count_wotitle_", Date_analy_simple, ".pdf"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
 #+ 
 ## Model 3 (Zero)
-p <- plotEstMod(EstMod_hurdle_wk, startdate, "zero", "m3", "cumulative", "positive", varlab_3)
+p <- plotEstMod(EstMod_hurdle, startdate, "zero", "m3", "cumulative", "positive", varlab_3)
 #+ fig.width = 8, fig.height = 6
 p
 #+ eval = FALSE
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m3_zero.png"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m3_zero.pdf"), p, width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m3_zero_wotitle.png"), 
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m3_zero_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m3_zero_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m3_zero_wotitle_", Date_analy_simple, ".png"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
-ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m3_zero_wotitle.pdf"), 
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m3_zero_wotitle_", Date_analy_simple, ".pdf"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+
+#+ 
+## Model 4 (Count)
+p <- plotEstMod(EstMod_hurdle, startdate, "count", "m4", "cumulative", "positive", varlab_3)
+#+ fig.width = 8, fig.height = 6
+p
+#+ eval = FALSE
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m4_count_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m4_count_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m4_count_wotitle_", Date_analy_simple, ".png"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m4_count_wotitle_", Date_analy_simple, ".pdf"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+#+ 
+## Model 4 (Zero)
+p <- plotEstMod(EstMod_hurdle, startdate, "zero", "m4", "cumulative", "positive", varlab_3)
+#+ fig.width = 8, fig.height = 6
+p
+#+ eval = FALSE
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m4_zero_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m4_zero_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m4_zero_wotitle_", Date_analy_simple, ".png"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m4_zero_wotitle_", Date_analy_simple, ".pdf"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
 
 #+ eval=FALSE, echo=FALSE
 # Exporting HTML File
 # In R Studio
-rmarkdown::render('src/analysis_dailyreg_hurdle_cataluna_latest.R', 
+rmarkdown::render(paste0(projdir, '/src/analysis_dailyreg_hurdle_cataluna_latest.R'), 
                   rmarkdown::github_document(toc=TRUE),
                   clean=FALSE)
 tmp <- list.files(paste0(projdir,"/src"))

@@ -13,6 +13,8 @@ Literature/
 src/old/
 out/old/
 
+# Temporal Analysis files
+out/*.rds
 
 # Ignore generated latex files
 *.ini
@@ -26,8 +28,13 @@ out/old/
 *.synctex.gz
 *.bib.sav
 *.log
+
 # Ignore R related files
 *.Rhistory
+
 # Ignore Google Doc Related Files
 *.gdlink
 *.gddoc
+
+# Ignore madrid related Files
+*_madrid*
