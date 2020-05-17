@@ -2,6 +2,9 @@
 
 **Working Paper** (Will be Updated Soon!)
 
+ * [Analysis Code (05/14/2020)](src/analysis_dailyreg_hurdle_cataluna_20200514.md)
+ * [Map Visualization Code (05/14/2020)](src/analysis_map_visualization_cataluna_20200514.md)
+
 ### Authors
 
 **Ryohei Mogi** (Centre d’Estudis Demogràfics, Universitat Autònoma de Barcelona) <br>
