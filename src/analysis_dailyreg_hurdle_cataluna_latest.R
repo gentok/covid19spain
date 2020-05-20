@@ -1108,3 +1108,4 @@ ggsave(paste0(projdir,"/","out/ForArticle/currentreg_nb_posrate_m7_wotitle_", Da
 # tmp <- list.files(paste0(projdir,"/src"))
 # tmp <- tmp[grep("\\.spin\\.R$|\\.spin\\.Rmd$|\\.utf8\\.md$|\\.knit\\.md$|\\.tex",tmp)]
 # for (i in 1:length(tmp)) file.remove(paste0(projdir,"/src/",tmp[i]))
+  

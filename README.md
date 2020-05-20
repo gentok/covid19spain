@@ -1,6 +1,6 @@
-## Inequality and COVID-19 prevalence in municipalities in Catalonia, Spain
+## Socioeconomic inequality and COVID-19 prevalence across municipalities in Catalonia, Spain
 
-**Working Paper** (Will be Updated Soon!)
+[**Working Paper** (Available from SocArXiv)](https://osf.io/preprints/socarxiv/5jgzy/)
 
  * [Analysis Code (until 05/14/2020)](src/analysis_dailyreg_hurdle_cataluna_20200514.md)
  * [Map Visualization Code (until 05/14/2020)](src/analysis_map_visualization_cataluna_20200514.md)
