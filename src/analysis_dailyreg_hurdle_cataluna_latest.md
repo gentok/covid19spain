@@ -1,9 +1,7 @@
 Analysis of COVID-19 PCR Test Data (Latest)
 ================
 Gento Kato and Ryohei Mogi
-First Created in April 15, 2020
-
-upd: 2020/05/16 by Gento Kato <br> upd: 2020/05/08 by Ryohei Mogi
+May 20, 2020
 
 # Preparation
 
@@ -66,7 +64,7 @@ Date_analy_simple <- "latest"
 Date_analy
 ```
 
-    ## [1] "2020-05-16"
+    ## [1] "2020-05-17"
 
 # Data Cleaning/Manipulation
 
@@ -135,9 +133,9 @@ granddt <- granddt %>%
          pop_eduall = t12_1 + t12_2 + t12_3 + t12_4 + t12_5,
          prop_univ = (pop_univ / pop_eduall) * 100,
          mean_numhh_census = ((1 * t22_1) + (2 * t22_2) + (3 * t22_3) + (4 * t22_4) + 
-                                (5 * t22_5) + (7 * t22_6)) / 
-           ((1 * t22_1) + (1 * t22_2) + (1 * t22_3) + (1 * t22_4) + 
-              (1 * t22_5) + (1 * t22_6)), # how to define the last category (6+)
+                              (5 * t22_5) + (7 * t22_6)) / 
+                              ((1 * t22_1) + (1 * t22_2) + (1 * t22_3) + (1 * t22_4) + 
+                               (1 * t22_5) + (1 * t22_6)), # how to define the last category (6+)
          log_pop = log(pop),
          log_popdens = log(popdens))
 ```
@@ -149,6 +147,7 @@ granddt <- granddt %>%
 ``` r
 ## Moving Sum by 7 days
 granddt$pos_wk <- NA
+granddt$test_wk <- NA
 for (i in unique(granddt$mundesc)) {
   granddt$pos_wk[granddt$mundesc == i] <- c(rep(NA, 6), as.vector(moving.sum(fts(granddt$Data[granddt$mundesc==i], 
                                                          granddt$pos_day[granddt$mundesc==i]), periods=7)))
@@ -158,7 +157,14 @@ for (i in unique(granddt$mundesc)) {
 tail(granddt$pos_wk, 30)
 ```
 
-    ##  [1] 0 0 1 1 1 1 1 1 1 0 0 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0
+    ##  [1] 0 1 1 1 1 1 1 1 0 0 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0
+
+``` r
+tail(granddt$test_wk, 30)
+```
+
+    ##  [1]  4  4  4  4  7  7  9 12 30 48 51 48 50 50 46 28 10  8  8  7  6  6  7  7  6  6  7  6
+    ## [29]  6  4
 
 ``` r
 # Check mean number of household members
@@ -270,6 +276,23 @@ doEstMod_hurdle <- function(threshold_Data) {
                      stdv(pop_univ) + 
                      stdv(log(pop)) + stdv(log(popdens)) + 
                      stdv(mean_numhh_census), 
+                   dist = "negbin", data = .),
+       m5 = hurdle(test ~ stdv(regunemprate) + stdv(taxbaseincome) + 
+                     stdv(prop_smallhouse) + 
+                     stdv(prop_immig_noEU) + #stdv(prop_service) +
+                     stdv(deathrate) + stdv(poppr_65plus) + 
+                     stdv(prop_univ) + 
+                     stdv(log(pop)) + stdv(log(popdens)) + 
+                     stdv(mean_numhh_census) + 
+                     stdv((pos>0)*1) + 
+                     stdv(log(pos+1))
+                     | stdv(regunemprate) + stdv(taxbaseincome) + 
+                     stdv(prop_smallhouse) + 
+                     stdv(prop_immig_noEU) + #stdv(prop_service) +
+                     stdv(deathrate) + stdv(poppr_65plus) + 
+                     stdv(prop_univ) + 
+                     stdv(log(pop)) + stdv(log(popdens)) + 
+                     stdv(mean_numhh_census) , 
                    dist = "negbin", data = .)
     )
 }
@@ -311,6 +334,22 @@ doEstMod_hurdle_wk <- function(threshold_Data) {
                      stdv(pop_univ) + 
                      stdv(log(pop)) + stdv(log(popdens)) + 
                      stdv(mean_numhh_census), 
+                   dist = "negbin", data = .),
+       m5 = hurdle(test_wk ~ stdv(regunemprate) + stdv(taxbaseincome) + 
+                     stdv(prop_smallhouse) + 
+                     stdv(prop_immig_noEU) + #stdv(prop_service) +
+                     stdv(deathrate) + stdv(poppr_65plus) + 
+                     stdv(prop_univ) + 
+                     stdv(log(pop)) + stdv(log(popdens)) + 
+                     stdv(mean_numhh_census)  + 
+                     stdv((pos_wk>0)*1)  + 
+                     stdv(log(pos_wk+1)) | stdv(regunemprate) + stdv(taxbaseincome) + 
+                     stdv(prop_smallhouse) + 
+                     stdv(prop_immig_noEU) + #stdv(prop_service) +
+                     stdv(deathrate) + stdv(poppr_65plus) + 
+                     stdv(prop_univ) + 
+                     stdv(log(pop)) + stdv(log(popdens)) + 
+                     stdv(mean_numhh_census), 
                    dist = "negbin", data = .)
     )
 }
@@ -323,7 +362,7 @@ varlab_1 <- c("(Intercept)", "% Unemployment \n(Registered)",
             "Av. Taxable Base Income \n(10k euro)", #"% Low-Cost Rent",
             "% Small House \n(<=90sq.m)",
             "% Immigrants out of EU", #"% Service Industry",
-            "Death rate in 2018", "% Age 65+", 
+            "Crude death rate", "% Age 65+", 
             "% University degree",
             "Population (Log)","Pop. Density (Log)",
             "Av. N in Household")
@@ -334,10 +373,11 @@ varlab_4 <- c("(Intercept)", "N. Unemployed pop\n(Registered)",
               "Av. Taxable Base Income \n(10k euro)", #"% Low-Cost Rent",
               "% Small House \n(<=90sq.m)",
               "Immigrants out of EU", #"% Service Industry",
-              "N. Death in 2018", "N. Age 65+", 
+              "N. Death", "N. Age 65+", 
               "N. University degree",
               "Population (Log)","Pop. Density (Log)",
               "Av. N in Household")
+varlab_5 <- c(varlab_1, "Have positive cases \n(Dummy)", "N. positive cases (Log)")
 
 # Plotting Only One Day
 plotEstMod_oneshot <- function(EstMod, date, modname, dvtxt1, dvtxt2, varlab){
@@ -354,6 +394,10 @@ plotEstMod_oneshot <- function(EstMod, date, modname, dvtxt1, dvtxt2, varlab){
   c2 <- mod$coefficients$zero
   k <- vcov(mod)
   k2 <- sqrt(diag(k[grep("zero",rownames(k)),grep("zero",colnames(k))]))
+  if (modname=="m5") {
+    c2 <- c(c2,NA,NA)
+    k2 <- c(k2,NA,NA)
+  }
   
   EstOut <- data.frame(estimate = c(c1,c2), term = varlab, std.error = c(k1,k2),
                        type = rep(c("Positive Count \n(Negative Binomial)",
@@ -386,8 +430,8 @@ plotEstMod_oneshot <- function(EstMod, date, modname, dvtxt1, dvtxt2, varlab){
     labs(x = "Odds/incidence-rate ratio (logged scale) \nwith 95% and 90% confidence intervals",
          title = paste0("Association between municipality characteristics and \n", dvtxt1, " COVID-19 ", dvtxt2, " cases"),
          caption = captiontxt) + 
-    scale_shape_discrete(name="Statistical Significance") + 
-    scale_color_discrete(name="Statistical Significance") + 
+    scale_shape_discrete(name="Statistical Significance", drop=FALSE, na.translate=FALSE) + 
+    scale_color_discrete(name="Statistical Significance", drop=FALSE, na.translate=FALSE) + 
     scale_x_continuous(trans="log10") + 
     theme(axis.title.y = element_blank(),
           legend.position = "bottom",
@@ -437,7 +481,7 @@ plotEstMod <- function(EstMod,startdate,type,modname,dvtxt1,dvtxt2,varlab) {
                           " (N=", EstMod$targetmod[[1]]$n," in each model).")) + 
     theme_classic() + theme(legend.position = "none",
                             plot.title = element_text(hjust=0.5),
-                            axis.text.x = element_text(angle=30, vjust=0.8, hjust=0.9)) 
+                            axis.text.x = element_text(angle=30,vjust=0.8,hjust=0.9)) 
 }
 ```
 
@@ -445,30 +489,31 @@ plotEstMod <- function(EstMod,startdate,type,modname,dvtxt1,dvtxt2,varlab) {
 
 ``` r
 corrdt <- granddt %>% 
-  select(regunemprate, taxbaseincome, 
+  dplyr::select(regunemprate, taxbaseincome, 
          prop_smallhouse, prop_immig_noEU, 
          deathrate, poppr_65plus, 
          prop_univ,
          log_pop, log_popdens, 
          mean_numhh_census)
 colnames(corrdt) <- c("A. Unemployment (%)",
-                    "B. Av. taxable income (10k euro)",
-                    "C. House <= 90sq.m (%)",           
-                    "D.Immigrants out of EU (%)",
-                    "E. Crude death rate (2018)",                   
-                    "F. Age 65+ (%)",
-                    "G. University degree (%)",
-                    "H. Population (Log)",
-                    "I. Pop. Density (Log)",                   
-                    "J. Av. N in Household")
+                      "B. Av. taxable income (10k euro)",
+                      "C. House <= 90sq.m (%)",           
+                      "D.Immigrants out of EU (%)",
+                      "E. Crude death rate",                   
+                      "F. Age 65+ (%)",
+                      "G. University degree (%)",
+                      "H. Population (Log)",
+                      "I. Pop. Density (Log)",                   
+                      "J. Av. N in Household")
 corrmat <- cor(corrdt[,rev(colnames(corrdt))], use="pairwise")
 rownames(corrmat) <- sub("\\..*$","", rev(colnames(corrdt)))
 
 ## Correlation matrix
 # p <- ggcorr(corrmat, palette = "RdBu", label = T, hjust=1)
 require(ggcorrplot)
-p <- ggcorrplot(corrmat, type = "full", show.diag=TRUE, lab = TRUE, tl.srt=0) + 
-  theme_classic() + labs(x=NULL,y=NULL) + 
+p <- ggcorrplot(corrmat, type = "full", show.diag = TRUE, lab = TRUE, 
+                tl.srt = 0, legend.title = "") + 
+  theme_classic() + labs(x=NULL, y=NULL) + 
   scale_x_discrete(expand=c(0,0)) + 
   scale_y_discrete(expand=c(0,0)) + 
   geom_hline(aes(yintercept=6.5), linetype=1) + 
@@ -514,11 +559,11 @@ EstMod_hurdle_wk <- doEstMod_hurdle_wk("2020-03-09")
 Date_analy
 ```
 
-    ## [1] "2020-05-16"
+    ## [1] "2020-05-17"
 
 ``` r
 p <- plotEstMod_oneshot(EstMod_hurdle, Date_analy, "m1", 
-                   "cumulative", "positive", varlab_1)
+                        "cumulative", "positive", varlab_1)
 ```
 
 ``` r
@@ -600,6 +645,34 @@ ggsave(paste0(projdir,"/","out/ForArticle/currentreg_hurdle_cum_pos_m4_wotitle_"
 #        p + labs(title=NULL, caption=NULL), width = 8, height = 5)
 ```
 
+``` r
+p <- plotEstMod_oneshot(EstMod_hurdle, Date_analy, "m5", 
+                        "cumulative", "test", varlab_5)
+```
+
+``` r
+p
+```
+
+    ## Warning: Removed 2 rows containing missing values (geom_segment).
+    
+    ## Warning: Removed 2 rows containing missing values (geom_segment).
+
+    ## Warning: Removed 2 rows containing missing values (geom_point).
+
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-22-1.png)<!-- -->
+
+``` r
+ggsave(paste0(projdir,"/","out/currentreg_hurdle_cum_pos_m5_", Date_analy_simple, ".png"), p, width = 8, height = 5)
+ggsave(paste0(projdir,"/","out/currentreg_hurdle_cum_pos_m5_", Date_analy_simple, ".pdf"), p, width = 8, height = 5)
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_hurdle_cum_pos_m5_wotitle_", Date_analy_simple, ".png"),
+       p + labs(title=NULL, caption=NULL), width = 8, height = 5)
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_hurdle_cum_pos_m5_wotitle_", Date_analy_simple, ".pdf"),
+       p + labs(title=NULL, caption=NULL), width = 8, height = 5)
+# ggsave("Graph/currentreg_hurdle_cum_pos_m5_wotitle_", Date_analy_simple, ".png", 
+#        p + labs(title=NULL, caption=NULL), width = 8, height = 5)
+```
+
 ## Dynamic Plots
 
 ``` r
@@ -620,7 +693,7 @@ p <- plotEstMod(EstMod_hurdle_wk, startdate, "count", "m1", "weekly", "positive"
 p
 ```
 
-![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-24-1.png)<!-- -->
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-26-1.png)<!-- -->
 
 ``` r
 ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m1_count_", Date_analy_simple, ".png"), p, width = 8, height = 6)
@@ -643,7 +716,7 @@ p <- plotEstMod(EstMod_hurdle_wk, startdate, "zero", "m1", "weekly", "positive",
 p
 ```
 
-![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-27-1.png)<!-- -->
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-29-1.png)<!-- -->
 
 ``` r
 ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m1_zero_", Date_analy_simple, ".png"), p, width = 8, height = 6)
@@ -666,7 +739,7 @@ p <- plotEstMod(EstMod_hurdle_wk, startdate, "count", "m2", "weekly", "positive"
 p
 ```
 
-![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-30-1.png)<!-- -->
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-32-1.png)<!-- -->
 
 ``` r
 ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m2_count_", Date_analy_simple, ".png"), p, width = 8, height = 6)
@@ -686,7 +759,7 @@ p <- plotEstMod(EstMod_hurdle_wk, startdate, "zero", "m2", "weekly", "positive",
 p
 ```
 
-![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-33-1.png)<!-- -->
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-35-1.png)<!-- -->
 
 ``` r
 ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m2_zero_", Date_analy_simple, ".png"), p, width = 8, height = 6)
@@ -706,7 +779,7 @@ p <- plotEstMod(EstMod_hurdle_wk, startdate, "count", "m3", "weekly", "positive"
 p
 ```
 
-![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-36-1.png)<!-- -->
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-38-1.png)<!-- -->
 
 ``` r
 ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m3_count_", Date_analy_simple, ".png"), p, width = 8, height = 6)
@@ -726,7 +799,7 @@ p <- plotEstMod(EstMod_hurdle_wk, startdate, "zero", "m3", "weekly", "positive",
 p
 ```
 
-![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-39-1.png)<!-- -->
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-41-1.png)<!-- -->
 
 ``` r
 ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m3_zero_", Date_analy_simple, ".png"), p, width = 8, height = 6)
@@ -746,7 +819,7 @@ p <- plotEstMod(EstMod_hurdle_wk, startdate, "count", "m4", "weekly", "positive"
 p
 ```
 
-![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-42-1.png)<!-- -->
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-44-1.png)<!-- -->
 
 ``` r
 ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m4_count_", Date_analy_simple, ".png"), p, width = 8, height = 6)
@@ -768,7 +841,7 @@ p <- plotEstMod(EstMod_hurdle_wk, startdate, "zero", "m4", "weekly", "positive",
 p
 ```
 
-![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-45-1.png)<!-- -->
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-47-1.png)<!-- -->
 
 ``` r
 ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m4_zero_", Date_analy_simple, ".png"), p, width = 8, height = 6)
@@ -776,6 +849,48 @@ ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m4_zero_", Date_analy_simp
 ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m4_zero_wotitle_", Date_analy_simple, ".png"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
 ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m4_zero_wotitle_", Date_analy_simple, ".pdf"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+```
+
+``` r
+## Model 5 (Count)
+p <- plotEstMod(EstMod_hurdle_wk, startdate, "count", "m5", "weekly", "test", varlab_5)
+```
+
+``` r
+p
+```
+
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-50-1.png)<!-- -->
+
+``` r
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m5_count_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m5_count_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m5_count_wotitle_", Date_analy_simple, ".png"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m5_count_wotitle_", Date_analy_simple, ".pdf"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+# ggsave("Graph/dailyreg_hurdle_wk_pos_m5_count_wotitle_census.png", 
+#        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+```
+
+``` r
+## Model 5 (Zero)
+p <- plotEstMod(EstMod_hurdle_wk, startdate, "zero", "m5", "weekly", "test", varlab_1)
+```
+
+``` r
+p
+```
+
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-53-1.png)<!-- -->
+
+``` r
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m5_zero_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_wk_pos_m5_zero_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m5_zero_wotitle_", Date_analy_simple, ".png"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_wk_pos_m5_zero_wotitle_", Date_analy_simple, ".pdf"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
 ```
 
@@ -790,7 +905,7 @@ p <- plotEstMod(EstMod_hurdle, startdate, "count", "m1", "cumulative", "positive
 p
 ```
 
-![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-48-1.png)<!-- -->
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-56-1.png)<!-- -->
 
 ``` r
 ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m1_count_", Date_analy_simple, ".png"), p, width = 8, height = 6)
@@ -813,7 +928,7 @@ p <- plotEstMod(EstMod_hurdle, startdate, "zero", "m1", "cumulative", "positive"
 p
 ```
 
-![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-51-1.png)<!-- -->
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-59-1.png)<!-- -->
 
 ``` r
 ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m1_zero_", Date_analy_simple, ".png"), p, width = 8, height = 6)
@@ -835,7 +950,7 @@ p <- plotEstMod(EstMod_hurdle, startdate, "count", "m2", "cumulative", "positive
 p
 ```
 
-![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-54-1.png)<!-- -->
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-62-1.png)<!-- -->
 
 ``` r
 ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m2_count_", Date_analy_simple, ".png"), p, width = 8, height = 6)
@@ -855,7 +970,7 @@ p <- plotEstMod(EstMod_hurdle, startdate, "zero", "m2", "cumulative", "positive"
 p
 ```
 
-![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-57-1.png)<!-- -->
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-65-1.png)<!-- -->
 
 ``` r
 ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m2_zero_", Date_analy_simple, ".png"), p, width = 8, height = 6)
@@ -875,7 +990,7 @@ p <- plotEstMod(EstMod_hurdle, startdate, "count", "m3", "cumulative", "positive
 p
 ```
 
-![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-60-1.png)<!-- -->
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-68-1.png)<!-- -->
 
 ``` r
 ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m3_count_", Date_analy_simple, ".png"), p, width = 8, height = 6)
@@ -895,7 +1010,7 @@ p <- plotEstMod(EstMod_hurdle, startdate, "zero", "m3", "cumulative", "positive"
 p
 ```
 
-![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-63-1.png)<!-- -->
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-71-1.png)<!-- -->
 
 ``` r
 ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m3_zero_", Date_analy_simple, ".png"), p, width = 8, height = 6)
@@ -908,14 +1023,14 @@ ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m3_zero_wotitl
 
 ``` r
 ## Model 4 (Count)
-p <- plotEstMod(EstMod_hurdle, startdate, "count", "m4", "cumulative", "positive", varlab_3)
+p <- plotEstMod(EstMod_hurdle, startdate, "count", "m4", "cumulative", "positive", varlab_4)
 ```
 
 ``` r
 p
 ```
 
-![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-66-1.png)<!-- -->
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-74-1.png)<!-- -->
 
 ``` r
 ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m4_count_", Date_analy_simple, ".png"), p, width = 8, height = 6)
@@ -928,14 +1043,14 @@ ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m4_count_wotit
 
 ``` r
 ## Model 4 (Zero)
-p <- plotEstMod(EstMod_hurdle, startdate, "zero", "m4", "cumulative", "positive", varlab_3)
+p <- plotEstMod(EstMod_hurdle, startdate, "zero", "m4", "cumulative", "positive", varlab_4)
 ```
 
 ``` r
 p
 ```
 
-![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-69-1.png)<!-- -->
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-77-1.png)<!-- -->
 
 ``` r
 ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m4_zero_", Date_analy_simple, ".png"), p, width = 8, height = 6)
@@ -943,5 +1058,277 @@ ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m4_zero_", Date_analy_sim
 ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m4_zero_wotitle_", Date_analy_simple, ".png"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
 ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m4_zero_wotitle_", Date_analy_simple, ".pdf"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+```
+
+``` r
+## Model 5 (Count)
+p <- plotEstMod(EstMod_hurdle, startdate, "count", "m5", "cumulative", "test", varlab_5)
+```
+
+``` r
+p
+```
+
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-80-1.png)<!-- -->
+
+``` r
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m5_count_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m5_count_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m5_count_wotitle_", Date_analy_simple, ".png"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m5_count_wotitle_", Date_analy_simple, ".pdf"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+```
+
+``` r
+## Model 5 (Zero)
+p <- plotEstMod(EstMod_hurdle, startdate, "zero", "m5", "cumulative", "test", varlab_1)
+```
+
+``` r
+p
+```
+
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-83-1.png)<!-- -->
+
+``` r
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m5_zero_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/dailyreg_hurdle_cum_pos_m5_zero_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m5_zero_wotitle_", Date_analy_simple, ".png"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/dailyreg_hurdle_cum_pos_m5_zero_wotitle_", Date_analy_simple, ".pdf"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+```
+
+# Analysis: Positive rate (OLS)
+
+``` r
+PlotEst_posrate <- function(data, date, testmin, posmin=1, mod = "1"){
+  
+  D <- data %>% 
+    filter(Data == date, test >= testmin, pos >= posmin)
+  
+  if (mod=="1") {
+    m1 <- lm(posrate ~ stdv(regunemprate) + stdv(taxbaseincome) + 
+               stdv(prop_smallhouse) + 
+               stdv(prop_immig_noEU) + #stdv(prop_service) +
+               stdv(deathrate) + stdv(poppr_65plus) + 
+               stdv(prop_univ) + 
+               stdv(log(pop)) + stdv(log(popdens)) + 
+               stdv(mean_numhh_census), 
+             data = D)
+    varlab_set <- varlab_1
+    dv <- c("positive rate","positive rates")
+    estmeth <- "OLS"
+  } else if (mod=="1x") {
+    m1 <- lm(posrate ~ stdv(regunemprate) + stdv(taxbaseincome) + 
+               stdv(prop_smallhouse) + 
+               stdv(prop_immig_noEU) + #stdv(prop_service) +
+               stdv(deathrate) + stdv(poppr_65plus) + 
+               stdv(prop_univ) + 
+               stdv(log(pop)) + stdv(log(popdens)) + 
+               stdv(mean_numhh_census) + 
+               stdv(log(test_100k)), 
+             data = D)
+    varlab_set <- c(varlab_1, "Tests/100k pop. (Log)")
+    dv <- c("positive rate","positive rates")
+    estmeth <- "OLS"
+  } else if (mod=="6") {
+    require(MASS)
+    m1 <- glm.nb(pos ~ stdv(regunemprate) + stdv(taxbaseincome) + 
+               stdv(prop_smallhouse) + 
+               stdv(prop_immig_noEU) + #stdv(prop_service) +
+               stdv(deathrate) + stdv(poppr_65plus) + 
+               stdv(prop_univ) + 
+               stdv(log(pop)) + stdv(log(popdens)) + 
+               stdv(mean_numhh_census) + 
+               stdv(log(test_100k)), 
+             data = D)
+    varlab_set <- c(varlab_1, "Tests/100k pop. (Log)")
+    dv <- c("positive case","positive cases")
+    estmeth <- "negative binomial"
+  } else if (mod=="7") {
+    require(MASS)
+    m1 <- glm.nb(test ~ stdv(regunemprate) + stdv(taxbaseincome) + 
+                   stdv(prop_smallhouse) + 
+                   stdv(prop_immig_noEU) + #stdv(prop_service) +
+                   stdv(deathrate) + stdv(poppr_65plus) + 
+                   stdv(prop_univ) + 
+                   stdv(log(pop)) + stdv(log(popdens)) + 
+                   stdv(mean_numhh_census) + 
+                   stdv(log(pos)), 
+                 data = D)
+    varlab_set <- c(varlab_1, "N of positive cases (Log)")
+    dv <- c("test case","test cases")
+    estmeth <- "negative binomial"
+  } else {
+    stop("Invalid mod value!")
+  }
+
+  c1 <- coef(m1)
+  k <- vcov(m1)
+  k1 <- sqrt(diag(k))
+  
+  EstOut <- data.frame(estimate = c1, term = varlab_set, std.error = k1)
+  D_Fig <- EstOut %>% 
+    mutate(up95 = estimate + qnorm(0.975) * std.error,
+           lo95 = estimate - qnorm(0.975) * std.error,
+           up90 = estimate + qnorm(0.95) * std.error,
+           lo90 = estimate - qnorm(0.95) * std.error,
+           term = factor(term, levels = rev(varlab_set)),
+           sig = ifelse((lo95 > 0)|(up95 < 0), "p<.05",
+                        ifelse((lo90 > 0)|(up90 < 0), "p<.10", "n.s.")),
+           sig = factor(sig, levels = c("p<.05","p<.10","n.s."))) %>% 
+    filter(term != "(Intercept)")
+  
+  captiontxt <- paste0("Predictors' scales are standardized: coefficients correspond to 1 SD increase in each predictor.",
+                       "\nDependent variable is COIVD-19 ", dv[1], " at ", date, ". Model estimated by ", estmeth, " regression.", 
+                       "\nMunicipalities with less than ", testmin, " tests or ", posmin,
+                       " positive cases are dropped. N = ", nobs(m1),".")
+  
+  if (mod %in% c("6","7")) {
+    Fig <- D_Fig %>% 
+      ggplot() +
+      # geom_segment(aes(x = exp(lo90), xend = exp(up90), y = term, yend = term), col = "#FD8D3C", alpha = 0.8, size = 2) +
+      # geom_segment(aes(x = exp(lo95), xend = exp(up95), y = term, yend = term), col = "#ffa869", alpha = 0.8, size = 1.4) +
+      geom_segment(aes(x = exp(lo90), xend = exp(up90), y = term, yend = term, col = sig), alpha = 0.8, size = 2.2) +
+      geom_segment(aes(x = exp(lo95), xend = exp(up95), y = term, yend = term, col = sig), alpha = 0.8, size = 1.4) +
+      geom_point(aes(x = exp(estimate), y = term, shape = sig), size=2) +
+      geom_vline(xintercept = 1, linetype = "dotted") +
+      theme_bw() +
+      labs(x = "Incidence-rate ratio (logged scale) \nwith 95% and 90% confidence intervals",
+           title = paste0("Association between municipality characteristics and \n COVID-19 ", dv[2], " on ", date),
+           caption = captiontxt) + 
+      scale_shape_discrete(name="Statistical Significance", drop=FALSE, na.translate=FALSE) + 
+      scale_color_discrete(name="Statistical Significance", drop=FALSE, na.translate=FALSE) + 
+      scale_x_continuous(trans="log10") + 
+      theme(axis.title.y = element_blank(),
+            legend.position = "bottom",
+            plot.title = element_text(hjust=0.5))
+  } else {
+    Fig <- D_Fig %>% 
+      ggplot() +
+      geom_segment(aes(x = lo90, xend = up90, y = term, yend = term, col = sig), alpha = 0.8, size = 2.2) +
+      geom_segment(aes(x = lo95, xend = up95, y = term, yend = term, col = sig), alpha = 0.8, size = 1.4) +
+      geom_point(aes(x = estimate, y = term, shape = sig), size = 2) +
+      geom_vline(xintercept = 0, linetype = "dotted") +
+      theme_bw() +
+      labs(x = "Coefficient Estimates\nwith 95% and 90% confidence intervals",
+           title = paste0("Association between municipality characteristics and \n COVID-19 ", dv[2], " on ", date),
+           caption = captiontxt) + 
+      scale_shape_discrete(name = "Statistical Significance", drop = FALSE) + 
+      scale_color_discrete(name = "Statistical Significance", drop = FALSE) + 
+      scale_x_continuous() + 
+      theme(axis.title.y = element_blank(),
+            legend.position = "bottom",
+            plot.title = element_text(hjust = 0.5))
+  }
+
+  return(Fig)
+}
+```
+
+``` r
+## Model 1
+p <- PlotEst_posrate(data = granddt, date = Date_analy, testmin = 10, posmin=0)
+```
+
+``` r
+p
+```
+
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-87-1.png)<!-- -->
+
+``` r
+ggsave(paste0(projdir,"/","out/currentreg_ols_posrate_m1_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/currentreg_ols_posrate_m1_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_ols_posrate_m1_wotitle_", Date_analy_simple, ".png"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_ols_posrate_m1_wotitle_", Date_analy_simple, ".pdf"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+
+### For Mogi
+#ggsave(paste0("Graph/currentreg_ols_posrate_m1_wotitle_", Date_analy_simple, ".png"), 
+#       p + labs(title=NULL, caption=NULL), width = 8, height = 5)
+```
+
+``` r
+## Model 1 (with 5 or more positive cases)
+p <- PlotEst_posrate(data = granddt, date = Date_analy, testmin = 10, posmin=5)
+```
+
+``` r
+p
+```
+
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-90-1.png)<!-- -->
+
+``` r
+ggsave(paste0(projdir,"/","out/currentreg_ols_posrate_m1_pos1_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/currentreg_ols_posrate_m1_pos1_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_ols_posrate_m1_pos1_wotitle_", Date_analy_simple, ".png"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_ols_posrate_m1_pos1_wotitle_", Date_analy_simple, ".pdf"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+```
+
+``` r
+## Model 1x (with 5 or more positive cases)
+p <- PlotEst_posrate(data = granddt, date = Date_analy, testmin = 10, posmin=0, mod = "1x")
+```
+
+``` r
+p
+```
+
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-93-1.png)<!-- -->
+
+``` r
+ggsave(paste0(projdir,"/","out/currentreg_ols_posrate_m1x_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/currentreg_ols_posrate_m1x_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_ols_posrate_m1x_wotitle_", Date_analy_simple, ".png"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_ols_posrate_m1x_wotitle_", Date_analy_simple, ".pdf"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+```
+
+``` r
+## Model 6 (with 5 or more positive cases)
+p <- PlotEst_posrate(data = granddt, date = Date_analy, testmin = 1, posmin=0, mod = "6")
+```
+
+``` r
+p
+```
+
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-96-1.png)<!-- -->
+
+``` r
+ggsave(paste0(projdir,"/","out/currentreg_nb_posrate_m6_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/currentreg_nb_posrate_m6_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_nb_posrate_m6_wotitle_", Date_analy_simple, ".png"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_nb_posrate_m6_wotitle_", Date_analy_simple, ".pdf"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+```
+
+``` r
+## Model 7 (with 5 or more positive cases)
+p <- PlotEst_posrate(data = granddt, date = Date_analy, testmin = 1, posmin=10, mod = "7")
+```
+
+``` r
+p
+```
+
+![](analysis_dailyreg_hurdle_cataluna_latest_files/figure-gfm/unnamed-chunk-99-1.png)<!-- -->
+
+``` r
+ggsave(paste0(projdir,"/","out/currentreg_nb_posrate_m7_", Date_analy_simple, ".png"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/currentreg_nb_posrate_m7_", Date_analy_simple, ".pdf"), p, width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_nb_posrate_m7_wotitle_", Date_analy_simple, ".png"), 
+       p + labs(title=NULL, caption=NULL), width = 8, height = 6)
+ggsave(paste0(projdir,"/","out/ForArticle/currentreg_nb_posrate_m7_wotitle_", Date_analy_simple, ".pdf"), 
        p + labs(title=NULL, caption=NULL), width = 8, height = 6)
 ```
